@@ -32,11 +32,18 @@ class sensu::package {
 
   }
 
-  package { 'sensu':
-    ensure  => $sensu::version,
+  if $sensu::install_repo {
+    package { 'sensu':
+      ensure  => $sensu::version,
+    }
+  } else {
+    package { 'sensu':
+      ensure   => $sensu::version,
+      provider => gem,
+    }
   }
 
-  package { 'sensu-plugin' :
+  package { 'sensu-plugin':
     ensure   => $sensu::sensu_plugin_version,
     provider => 'gem',
   }
