@@ -33,6 +33,11 @@
 #   Default: latest
 #   Valid values: absent, installed, latest, present, [\d\.\-]+
 #
+# [*pkg_provider*]
+#   String.  When using package to install plugins, provider to use.
+#   Default: undef
+#   Valid values: aptitude, apt, sensu_gem
+#
 # [*nocheckcertificate*]
 #   Boolean.  When using url source, disable certificate checking for HTTPS
 #   Default: false
@@ -44,8 +49,17 @@ define sensu::plugin(
   $recurse            = true,
   $force              = true,
   $pkg_version        = 'latest',
+  $pkg_provider       = $::sensu::sensu_plugin_provider,
   $nocheckcertificate = false,
 ){
+
+  File {
+    owner => 'sensu',
+    group => 'sensu',
+  }
+
+  Sensu::Plugin[$name] ->
+  Class['sensu::client::service']
 
   validate_bool($purge, $recurse, $force, $nocheckcertificate)
   validate_re($pkg_version, ['^absent$', '^installed$', '^latest$', '^present$', '^[\d\.\-]+$'], "Invalid package version: ${pkg_version}")
@@ -55,7 +69,7 @@ define sensu::plugin(
     'file':       {
       $filename = inline_template('<%= scope.lookupvar(\'name\').split(\'/\').last %>')
 
-      define_plugins_dir { "${name}-${install_path}":
+      sensu::plugins_dir { "${name}-${install_path}":
         path    => $install_path,
         purge   => $purge,
         recurse => $recurse,
@@ -72,7 +86,7 @@ define sensu::plugin(
     'url' : {
         $filename = inline_template('<%= scope.lookupvar(\'name\').split(\'/\').last %>')
 
-        define_plugins_dir { "${name}-${install_path}":
+        sensu::plugins_dir { "${name}-${install_path}":
           path    => $install_path,
           purge   => $purge,
           recurse => $recurse,
@@ -100,36 +114,18 @@ define sensu::plugin(
         recurse => $recurse,
         purge   => $purge,
         force   => $force,
+        require => Package['sensu'],
       }
     }
     'package':    {
       package { $name:
-        ensure  => $pkg_version
+        ensure   => $pkg_version,
+        provider => $pkg_provider,
       }
     }
     default:      {
       fail('Unsupported sensu::plugin install type')
     }
 
-  }
-}
-# This is to verify the install_dir exists without duplicate declarations
-define define_plugins_dir (
-  $path = $name,
-  $force,
-  $purge,
-  $recurse,
-) {
-  if ! defined(File[$path]) {
-    file { $path:
-      ensure  => directory,
-      mode    => '0555',
-      owner   => 'sensu',
-      group   => 'sensu',
-      recurse => $recurse,
-      purge   => $purge,
-      force   => $force,
-      require => Package['sensu'],
-    }
   }
 }

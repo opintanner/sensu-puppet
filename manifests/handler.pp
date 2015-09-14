@@ -34,7 +34,7 @@
 #
 # [*pipe*]
 #   Hash.  Pipe information used when type=transport
-#   Keys: name, type, options 
+#   Keys: name, type, options
 #   Default: undef
 #
 # [*socket*]
@@ -43,8 +43,8 @@
 #   Default: undef
 #
 # [*filters*]
-#   Hash.  Filter command to apply
-#   Default: undef
+#   Array.  Filter command to apply
+#   Default: []
 #
 # [*source*]
 #   String.  Source of the puppet handler
@@ -58,6 +58,9 @@
 #   Hash.  Handler specific config
 #   Default: undef
 #
+# [*subdue*]
+#   Hash.  Handler subdue configuration
+#   Default: undef
 #
 define sensu::handler(
   $ensure       = 'present',
@@ -69,12 +72,13 @@ define sensu::handler(
   $pipe         = undef,
   $mutator      = undef,
   $socket       = undef,
-  $filters      = undef,
+  $filters      = [],
   # Used to install the handler
   $source       = undef,
   $install_path = '/etc/sensu/handlers',
   # Handler specific config
   $config       = undef,
+  $subdue       = undef,
 ) {
 
   validate_re($ensure, ['^present$', '^absent$'] )
@@ -82,7 +86,7 @@ define sensu::handler(
   if $exchange { validate_hash($exchange) }
   if $pipe { validate_hash($pipe) }
   if $socket { validate_hash($socket) }
-  validate_array($severities)
+  validate_array($severities, $filters)
   if $source { validate_re($source, ['^puppet://'] ) }
 
   if $type == 'pipe' and $ensure != 'absent' and !$command and !$source and !$mutator {
@@ -110,22 +114,21 @@ define sensu::handler(
     $notify_services = []
   }
 
-  if $source {
+  $file_ensure = $ensure ? {
+    'absent' => 'absent',
+    default  => 'file'
+  }
 
+  if $source {
     $filename = inline_template('<%= scope.lookupvar(\'source\').split(\'/\').last %>')
     $handler = "${install_path}/${filename}"
 
-    $file_ensure = $ensure ? {
-      'absent'  => 'absent',
-      default   => 'file'
-    }
-
     file { $handler:
-      ensure  => $file_ensure,
-      owner   => 'sensu',
-      group   => 'sensu',
-      mode    => '0555',
-      source  => $source,
+      ensure => $file_ensure,
+      owner  => 'sensu',
+      group  => 'sensu',
+      mode   => '0555',
+      source => $source,
     }
 
     $command_real = $command ? {
@@ -136,28 +139,30 @@ define sensu::handler(
     $command_real = $command
   }
 
+  # handler configuration may contain "secrets"
   file { "/etc/sensu/conf.d/handlers/${name}.json":
-    ensure  => $ensure,
-    owner   => 'sensu',
-    group   => 'sensu',
-    mode    => '0444',
-    before  => Sensu_handler[$name],
+    ensure => $file_ensure,
+    owner  => 'sensu',
+    group  => 'sensu',
+    mode   => '0440',
+    before => Sensu_handler[$name],
   }
 
   sensu_handler { $name:
-    ensure       => $ensure,
-    type         => $type,
-    command      => $command_real,
-    handlers     => $handlers,
-    severities   => $severities,
-    exchange     => $exchange,
-    pipe         => $pipe,
-    socket       => $socket,
-    mutator      => $mutator,
-    filters      => $filters,
-    config       => $config,
-    notify       => $notify_services,
-    require      => File['/etc/sensu/conf.d/handlers'],
+    ensure     => $ensure,
+    type       => $type,
+    command    => $command_real,
+    handlers   => $handlers,
+    severities => $severities,
+    exchange   => $exchange,
+    pipe       => $pipe,
+    socket     => $socket,
+    mutator    => $mutator,
+    filters    => $filters,
+    config     => $config,
+    subdue     => $subdue,
+    notify     => $notify_services,
+    require    => File['/etc/sensu/conf.d/handlers'],
   }
 
 }

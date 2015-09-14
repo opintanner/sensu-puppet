@@ -11,21 +11,14 @@ class sensu::package {
   case $::osfamily {
 
     'Debian': {
-      class { 'sensu::repo::apt': }
+      class { '::sensu::repo::apt': }
       if $sensu::install_repo {
-        $repo_require = Apt::Source['sensu']
-      } else {
-        $repo_require = undef
+        include ::apt
       }
     }
 
     'RedHat': {
-      class { 'sensu::repo::yum': }
-      if $sensu::install_repo {
-        $repo_require = Yumrepo['sensu']
-      } else {
-        $repo_require = undef
-      }
+      class { '::sensu::repo::yum': }
     }
 
     default: { fail("${::osfamily} not supported yet") }
@@ -43,9 +36,26 @@ class sensu::package {
     }
   }
 
-  package { 'sensu-plugin':
-    ensure   => $sensu::sensu_plugin_version,
-    provider => 'gem',
+  if $::sensu::sensu_plugin_provider {
+    $plugin_provider = $::sensu::sensu_plugin_provider
+  } else {
+    $plugin_provider = $sensu::use_embedded_ruby ? {
+      true    => 'sensu_gem',
+      default => 'gem',
+    }
+  }
+
+  if $plugin_provider =~ /gem/ and $::sensu::gem_install_options {
+    package { $::sensu::sensu_plugin_name :
+      ensure          => $sensu::sensu_plugin_version,
+      provider        => $plugin_provider,
+      install_options => $::sensu::gem_install_options,
+    }
+  } else {
+    package { $::sensu::sensu_plugin_name :
+      ensure   => $sensu::sensu_plugin_version,
+      provider => $plugin_provider,
+    }
   }
 
   file { '/etc/default/sensu':
@@ -57,22 +67,47 @@ class sensu::package {
     require => Package['sensu'],
   }
 
-  file { [ '/etc/sensu/conf.d', '/etc/sensu/conf.d/handlers', '/etc/sensu/conf.d/checks', '/etc/sensu/conf.d/filters' ]:
+  file { [ '/etc/sensu/conf.d', '/etc/sensu/conf.d/handlers', '/etc/sensu/conf.d/checks', '/etc/sensu/conf.d/filters', '/etc/sensu/conf.d/extensions' ]:
     ensure  => directory,
     owner   => 'sensu',
     group   => 'sensu',
     mode    => '0555',
-    purge   => $sensu::purge_config,
+    purge   => $sensu::_purge_config,
     recurse => true,
     force   => true,
     require => Package['sensu'],
   }
 
-  file { ['/etc/sensu/handlers', '/etc/sensu/extensions', '/etc/sensu/mutators', '/etc/sensu/extensions/handlers']:
+  file { '/etc/sensu/handlers':
     ensure  => directory,
     mode    => '0555',
     owner   => 'sensu',
     group   => 'sensu',
+    purge   => $sensu::_purge_handlers,
+    recurse => true,
+    force   => true,
+    require => Package['sensu'],
+  }
+
+  file { ['/etc/sensu/extensions', '/etc/sensu/extensions/handlers']:
+    ensure  => directory,
+    mode    => '0555',
+    owner   => 'sensu',
+    group   => 'sensu',
+    purge   => $sensu::_purge_extensions,
+    recurse => true,
+    force   => true,
+    require => Package['sensu'],
+  }
+
+  file { '/etc/sensu/mutators':
+    ensure  => directory,
+    mode    => '0555',
+    owner   => 'sensu',
+    group   => 'sensu',
+    purge   => $sensu::_purge_mutators,
+    recurse => true,
+    force   => true,
     require => Package['sensu'],
   }
 
@@ -82,6 +117,9 @@ class sensu::package {
       mode    => '0555',
       owner   => 'sensu',
       group   => 'sensu',
+      purge   => $sensu::_purge_plugins,
+      recurse => true,
+      force   => true,
       require => Package['sensu'],
     }
   }
@@ -96,8 +134,8 @@ class sensu::package {
     }
 
     group { 'sensu':
-      ensure  => 'present',
-      system  => true,
+      ensure => 'present',
+      system => true,
     }
   }
 

@@ -34,16 +34,17 @@ define sensu::filter (
   }
 
   file { "/etc/sensu/conf.d/filters/${name}.json":
-    ensure  => $ensure,
-    owner   => 'sensu',
-    group   => 'sensu',
-    mode    => '0444',
+    ensure => $ensure,
+    owner  => 'sensu',
+    group  => 'sensu',
+    mode   => '0444',
   }
 
   sensu_filter { $name:
-    ensure      => $ensure,
-    negate      => $negate,
-    attributes  => $attributes,
+    ensure     => $ensure,
+    negate     => $negate,
+    attributes => $attributes,
+    require    => File['/etc/sensu/conf.d/filters'],
   }
 
 }

@@ -13,6 +13,8 @@ describe 'sensu', :type => :class do
           :ensure        => 'present',
           :client_name   => 'host.domain.com',
           :address       => '2.3.4.5',
+          :bind          => '127.0.0.1',
+          :port          => '3030',
           :subscriptions => [],
           :ensure        => 'present',
           :custom        => {}
@@ -33,6 +35,8 @@ describe 'sensu', :type => :class do
           :ensure        => 'present',
           :client_name   => 'myclient',
           :address       => '1.2.3.4',
+          :bind          => '127.0.0.1',
+          :port          => '3030',
           :subscriptions => ['all'],
           :ensure        => 'present',
           :safe_mode     => true,
@@ -42,7 +46,7 @@ describe 'sensu', :type => :class do
       end # setting config params
 
       context 'purge config' do
-        let(:params) { { :purge_config => true } }
+        let(:params) { { :purge => { 'config' => true } } }
         it { should contain_file('/etc/sensu/conf.d/client.json').with_ensure('present') }
       end # purge config
 
@@ -67,6 +71,15 @@ describe 'sensu', :type => :class do
         it { should_not contain_service('sensu-client') }
       end # not managing service
 
+      context 'with hasrestart=false' do
+        let(:params) { { :client => true, :hasrestart => false } }
+        it { should contain_service('sensu-client').with(
+          :ensure     => 'running',
+          :enable     => true,
+          :hasrestart => false
+        ) }
+      end # with hasrestart=false
+
     end #service
 
   end #with client
@@ -76,7 +89,7 @@ describe 'sensu', :type => :class do
     context 'config' do
 
       context 'purge config' do
-        let(:params) { { :purge_config => true, :client => false } }
+        let(:params) { { :purge => { 'config' => true }, :client => false } }
         it { should contain_file('/etc/sensu/conf.d/client.json').with_ensure('absent') }
       end # purge config
 

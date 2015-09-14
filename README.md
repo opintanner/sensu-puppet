@@ -1,6 +1,7 @@
 # Sensu-Puppet
 
 Installs and manages the open source monitoring framework [Sensu](http://sensuapp.org).
+[![Puppet Forge](http://img.shields.io/puppetforge/v/sensu/sensu.svg)](https://forge.puppetlabs.com/sensu/sensu)
 
 ## Tested with Travis CI
 
@@ -12,8 +13,8 @@ Installs and manages the open source monitoring framework [Sensu](http://sensuap
 
 ## Sensu version supported
 
-The module currently supports Sensu version 0.12 and later. If not explictly stated it should always 
-support the latest Sensu release. Please log an issue if you identify any incompatibilties.
+The module currently supports Sensu version 0.12 and later. If not explicitly stated it should always
+support the latest Sensu release. Please log an issue if you identify any incompatibilities.
 
 ## Upgrade note
 
@@ -51,13 +52,47 @@ Debian & Ubuntu:
 
     $ sudo apt-get install ruby-json
 
+## Quick start
+
+Before this Puppet module can be used, the following items must be configured on the server.
+
+- Install Redis
+- Install RabbitMQ
+- Add users to RabbitMQ
+- Install dashboard (optional)
+
+To quickly try out Sensu, spin up a test virtual machine with Vagrant that already has these prerequisites installed.
+
+    $ vagrant up
+    $ vagrant status
+    $ vagrant ssh sensu-server
+
+You can then access the API.
+
+    $ curl http://admin:secret@localhost:4567/info
+
+Navigate to `192.168.56.10:3000` to use the uchiwa dashboard
+
+    username => uchiwa
+    password => uchiwa
+
+Navigate to `192.168.56.10:15672` to manage RabbitMQ
+
+    username => sensu
+    password => correct-horse-battery-staple
+
+See the [tests
+directory](https://github.com/sensu/sensu-puppet/tree/vagrant/tests) and
+[Vagrantfile](https://github.com/sensu/sensu-puppet/blob/vagrant/Vagrantfile)
+for examples on setting up the prerequisites.
+
 ## Basic example
 
 ### Sensu server
 
     node 'sensu-server.foo.com' {
       class { 'sensu':
-        rabbitmq_password => 'secret',
+        rabbitmq_password => 'correct-horse-battery-staple',
         server            => true,
         api               => true,
         plugins           => [
@@ -86,7 +121,7 @@ Debian & Ubuntu:
 
     node 'sensu-client.foo.com' {
        class { 'sensu':
-         rabbitmq_password  => 'secret',
+         rabbitmq_password  => 'correct-horse-battery-staple',
          rabbitmq_host      => 'sensu-server.foo.com',
          subscriptions      => 'sensu-test',
        }
@@ -113,7 +148,8 @@ and configures Sensu on each individual node via
 ### common.yaml
 
     sensu::install_repo: false
-    sensu::purge_config: true
+    sensu::purge:
+      config: true
     sensu::rabbitmq_host: 10.31.0.90
     sensu::rabbitmq_password: password
     sensu::rabbitmq_port: 5672
@@ -132,6 +168,29 @@ site.pp
       class { 'sensu': }
       ...
     }
+
+### sensu-client.foo.com.yaml
+
+    ---
+    sensu::subscriptions:
+        - all
+    sensu::server: false
+    sensu::extensions:
+      'system':
+        source: 'puppet:///modules/supervision/system_profile.rb'
+    sensu::handlers:
+      'graphite':
+        type: 'tcp'
+        socket:
+          host: '127.0.0.1'
+          port: '2003'
+        mutator: "only_check_output"
+    sensu::checks:
+      'file_test':
+        command: '/usr/local/bin/check_file_test.sh'
+    classes:
+        - sensu
+
 
 ## Safe Mode checks
 
@@ -152,7 +211,7 @@ are managed with the server, and API parameters.
 
     node 'sensu-server.foo.com' {
       class { 'sensu':
-        rabbitmq_password => 'secret',
+        rabbitmq_password => 'correct-horse-battery-staple',
         server            => true,
         api               => true,
         plugins           => [
@@ -175,7 +234,7 @@ are managed with the server, and API parameters.
 
     node 'sensu-client.foo.com' {
        class { 'sensu':
-         rabbitmq_password  => 'secret',
+         rabbitmq_password  => 'correct-horse-battery-staple',
          rabbitmq_host      => 'sensu-server.foo.com',
          subscriptions      => 'sensu-test',
          safe_mode          => true,
@@ -256,6 +315,25 @@ This will create the following handler definition for Sensu (server):
        }
      }
 
+## Extension configuration
+
+    sensu::extension {
+      'an_extension':
+        source  => 'puppet://somewhere/an_extension.rb',
+        config  => {
+          'foobar_setting' => 'value',
+      }
+    }
+
+This will save the extension under /etc/sensu/extensions and create
+the following configuration definition for Sensu:
+
+     {
+       "an_extension": {
+         "foobar_setting": "value"
+       },
+     }
+
 ### Disable Service Management
 
 If you'd prefer to use an external service management tool such as
@@ -263,6 +341,28 @@ DaemonTools or SupervisorD, you can disable the module's internal
 service management functions like so:
 
     sensu::manage_services: false
+
+## Purging Configuration
+
+By default, any sensu plugins, extensions, handlers, mutators, and
+configuration not defined using this puppet module will be left on
+the filesystem. This can be changed using the `purge` parameter.
+
+If all sensu plugins, extensions, handlers, mutators, and configuration
+should be managed by puppet, set the `purge` parameter to `true` to
+delete files which are not defined using this puppet module:
+
+    sensu::purge: true
+
+To get more fine-grained control over what is purged, set the `purge`
+parameter to a hash. The possible keys are: `config`, `plugins`,
+`extensions`, `handlers`, `mutators`. Any key whose value is `true`
+cause files of that type which are not defined using this puppet module
+to be deleted. Keys which are not specified will not be purged:
+
+    sensu::purge:
+      config: true
+      plugins: true
 
 ## Including Sensu monitoring in other modules
 
@@ -325,6 +425,16 @@ apache/manifests/service.pp
     case $monitoring {
       'sensu':  { include apache::monitoring::sensu }
       'nagios': { include apache::monitoring::nagios }
+    }
+
+## Installing Gems into the embedded ruby
+
+If you are using the embedded ruby that ships with Sensu, you can install gems
+by using the `sensu_gem` package provider:
+
+    package { 'redphone':
+      ensure   => 'installed',
+      provider => sensu_gem,
     }
 
 ## Dashboards

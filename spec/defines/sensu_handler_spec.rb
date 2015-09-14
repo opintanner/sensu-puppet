@@ -15,8 +15,17 @@ describe 'sensu::handler', :type => :define do
       :ensure      => 'present',
       :type        => 'pipe',
       :command     => '/etc/sensu/handlers/mycommand.rb',
+      :filters     => [],
       :severities  => ['ok', 'warning', 'critical', 'unknown']
     ) }
+    it do
+      should contain_file("/etc/sensu/conf.d/handlers/#{title}.json").with(
+        :ensure => 'file',
+        :owner  => 'sensu',
+        :group  => 'sensu',
+        :mode   => '0440'
+      ).that_comes_before("Sensu_Handler[#{title}]")
+    end
   end
 
   context 'absent' do
@@ -27,6 +36,11 @@ describe 'sensu::handler', :type => :define do
       :source => 'puppet:///somewhere/mycommand.rb'
     } }
     it { should contain_sensu_handler('myhandler').with_ensure('absent') }
+    it do
+      should contain_file("/etc/sensu/conf.d/handlers/#{title}.json").
+        with_ensure('absent').
+        that_comes_before("Sensu_Handler[#{title}]")
+    end
   end
 
   context 'install path' do
@@ -125,6 +139,21 @@ describe 'sensu::handler', :type => :define do
     let(:params) { { :command => 'mycommand.rb', :config => {'param' => 'value'} } }
 
     it { should contain_sensu_handler('myhandler').with_config( {'param' => 'value' } ) }
+  end
+
+  context 'subdue' do
+    let(:params) {
+      {
+        :command => 'mycommand.rb',
+        :type    => 'pipe',
+        :subdue  => {
+          'begin' => '09PM CEST',
+          'end'   => '10PM CEST'
+        }
+      }
+    }
+
+    it { should contain_sensu_handler('myhandler').with_subdue( {'begin' => '09PM CEST', 'end'   => '10PM CEST'} ) }
   end
 
 end

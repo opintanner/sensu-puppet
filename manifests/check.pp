@@ -34,6 +34,10 @@
 # [*refresh*]
 #   Integer.  The number of seconds sensu-plugin-aware handlers should wait before taking second action.
 #
+# [*source*]
+#   String.  The check source, used to create a JIT Sensu client for an external resource (e.g. a network switch).
+#   Default: undef
+#
 # [*subscribers*]
 #   Array of Strings.  Which subscriptions must execute this check
 #   Default: []
@@ -77,7 +81,8 @@ define sensu::check(
   $interval            = 60,
   $occurrences         = undef,
   $refresh             = undef,
-  $subscribers         = [],
+  $source              = undef,
+  $subscribers         = undef,
   $low_flap_threshold  = undef,
   $high_flap_threshold = undef,
   $timeout             = undef,
@@ -112,11 +117,11 @@ define sensu::check(
   $check_name = regsubst(regsubst($name, ' ', '_', 'G'), '[\(\)]', '', 'G')
 
   file { "/etc/sensu/conf.d/checks/${check_name}.json":
-    ensure  => $ensure,
-    owner   => 'sensu',
-    group   => 'sensu',
-    mode    => '0440',
-    before  => Sensu_check[$check_name],
+    ensure => $ensure,
+    owner  => 'sensu',
+    group  => 'sensu',
+    mode   => '0440',
+    before => Sensu_check[$check_name],
   }
 
   sensu_check { $check_name:
@@ -128,6 +133,7 @@ define sensu::check(
     interval            => $interval,
     occurrences         => $occurrences,
     refresh             => $refresh,
+    source              => $source,
     subscribers         => $subscribers,
     low_flap_threshold  => $low_flap_threshold,
     high_flap_threshold => $high_flap_threshold,

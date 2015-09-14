@@ -1,15 +1,10 @@
-begin
-  require 'puppet_x/sensu/to_type'
-rescue LoadError => e
-  libdir = Pathname.new(__FILE__).parent.parent.parent
-  require File.join(libdir, 'puppet_x/sensu/to_type')
-end
+require File.expand_path(File.join(File.dirname(__FILE__), '..', '..',
+                                   'puppet_x', 'sensu', 'boolean_property.rb'))
+require File.expand_path(File.join(File.dirname(__FILE__), '..', '..',
+                                   'puppet_x', 'sensu', 'to_type.rb'))
+
 Puppet::Type.newtype(:sensu_filter) do
   @doc = ""
-
-  def initialize(*args)
-    super
-  end
 
   ensurable do
     newvalue(:present) do
@@ -32,10 +27,9 @@ Puppet::Type.newtype(:sensu_filter) do
     defaultto '/etc/sensu/conf.d/filters/'
   end
 
-  newparam(:attributes) do
-    desc ""
-
-    include Puppet_X::Sensu::Totype
+  newproperty(:attributes) do
+    desc "Filter attributes"
+    include PuppetX::Sensu::ToType
 
     def is_to_s(hash = @is)
       hash.keys.sort.map {|key| "#{key} => #{hash[key]}"}.join(", ")
@@ -60,10 +54,10 @@ Puppet::Type.newtype(:sensu_filter) do
     defaultto {}
   end
 
-  newproperty(:negate, :boolean => true) do
+  newproperty(:negate, :parent => PuppetX::Sensu::BooleanProperty) do
     desc ""
 
-    newvalues(:true, :false)
+    defaultto :false # provider assumes it's managed
   end
 
   autorequire(:package) do

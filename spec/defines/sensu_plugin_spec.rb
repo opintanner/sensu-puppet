@@ -1,6 +1,9 @@
 require 'spec_helper'
 
 describe 'sensu::plugin', :type => :define do
+  # let(:facts) { { :osfamily => 'RedHat' } }
+  # let(:pre_condition) { 'class {"sensu": manage_plugins_dir => false' }
+  let(:pre_condition) { ['class sensu::client::service {}', 'include sensu::client::service'] }
 
   context 'file' do
     let(:title) { 'puppet:///data/plug1' }
@@ -8,7 +11,7 @@ describe 'sensu::plugin', :type => :define do
     context 'defaults' do
 
       it { should contain_file('/etc/sensu/plugins/plug1').with(
-        'source' => 'puppet:///data/plug1'
+        :source => 'puppet:///data/plug1'
       ) }
     end
 
@@ -18,7 +21,7 @@ describe 'sensu::plugin', :type => :define do
       } }
 
       it { should contain_file('/var/sensu/plugins/plug1').with(
-        'source' => 'puppet:///data/plug1'
+        :source => 'puppet:///data/plug1'
       ) }
     end
   end #file
@@ -32,10 +35,10 @@ describe 'sensu::plugin', :type => :define do
       } }
 
       it { should contain_wget__fetch('https://raw.githubusercontent.com/sensu/sensu-community-plugins/master/plugins/system/check-mem.sh').with(
-        'destination'        => '/etc/sensu/plugins/check-mem.sh',
-        'verbose'            => 'false',
-        'timeout'            => '0',
-        'nocheckcertificate' => 'false'
+        :destination        => '/etc/sensu/plugins/check-mem.sh',
+        :verbose            => false,
+        :timeout            => 0,
+        :nocheckcertificate => false
       ) }
 
     end
@@ -98,7 +101,10 @@ describe 'sensu::plugin', :type => :define do
       it { should contain_file('/etc/sensu/plugins').with(
         'recurse' => false,
         'purge'   => false,
-        'force'   => false
+        'force'   => false,
+        'mode'    => '0555',
+        'owner'   => 'sensu',
+        'group'   => 'sensu'
       ) }
     end
   end #directory
@@ -116,6 +122,12 @@ describe 'sensu::plugin', :type => :define do
       let(:params) { { :type => 'package', :pkg_version => '1.1.1' } }
 
       it { should contain_package('sensu-plugins').with_ensure('1.1.1') }
+    end
+
+    context 'set provider' do
+      let(:params) { { :type => 'package', :pkg_provider => 'sensu_gem' } }
+
+      it { should contain_package('sensu-plugins').with_provider('sensu_gem') }
     end
   end #package
 
